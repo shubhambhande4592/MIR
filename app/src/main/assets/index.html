@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b5ed7">
+<title>FIFO Pick Scanner</title>
+<style>
+:root{--bg:#f3f5f8;--card:#fff;--tx:#17202a;--mut:#667085;--pri:#0b5ed7;--ok:#13804a;--warn:#b25e00;--bad:#c0262d;--bd:#dde2ea;--hl:#ffe14d;--hltx:#1a1a1a}
+@media (prefers-color-scheme:dark){:root{--bg:#10141a;--card:#1b222c;--tx:#e8edf3;--mut:#9aa6b5;--pri:#4c8dff;--ok:#3ecf80;--warn:#f0a040;--bad:#ff6b70;--bd:#2d3744}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.4 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:#0b5ed7;color:#fff;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;align-items:center}
+header h1{font-size:16px;margin:0;flex:1}header small{opacity:.85;display:block;font-weight:400;font-size:11px}
+header button{background:rgba(255,255,255,.2);color:#fff;border:0;border-radius:8px;padding:7px 10px;font-size:13px}
+main{max-width:820px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+h2{font-size:13px;margin:0 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:10px;padding:11px 14px;font-weight:600}
+.btn.sec{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn.ok{background:var(--ok);color:#fff}.btn.bad{background:var(--bad);color:#fff}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1;min-width:0}
+input,select{font:inherit;width:100%;padding:11px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx)}
+.vwrap{position:relative}.vwrap video{width:100%;max-height:300px;background:#000;border-radius:10px;object-fit:cover;display:block}
+.ret{position:absolute;inset:18% 22%;border:3px solid rgba(255,225,77,.9);border-radius:14px;pointer-events:none;box-shadow:0 0 0 999px rgba(0,0,0,.25)}
+.torch{position:absolute;right:8px;top:8px;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:20px;padding:6px 12px}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.t-ok{background:var(--ok)}.t-warn{background:var(--warn)}.t-bad{background:var(--bad)}.t-new{background:#7a3db8}.t-gray{background:var(--mut)}
+.mut{color:var(--mut)}.big{font-size:18px;font-weight:700}
+.desc{background:var(--hl);color:var(--hltx);font-weight:800;font-size:20px;line-height:1.25;padding:10px 12px;border-radius:10px;margin:8px 0;box-shadow:0 0 0 3px rgba(255,200,0,.45)}
+.item{border-bottom:1px solid var(--bd);padding:8px 6px}.item:last-child{border:0}.item.hl{background:rgba(255,225,77,.35);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:6px 4px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{color:var(--mut)}td.n,th.n{text-align:right;white-space:nowrap}
+.bar{height:8px;border-radius:5px;background:var(--bd);overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--ok)}
+.hide{display:none!important}.pill{display:flex;gap:6px;flex-wrap:wrap}.pill>*{flex:1}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;z-index:30;max-width:90%}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);width:100%;max-width:820px;border-radius:16px 16px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+.scroll{overflow-x:auto}.tabs{display:flex;gap:6px;margin-bottom:8px}.tabs button{flex:1;padding:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:8px;font-weight:600}.tabs button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+label.l{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+.total{font-size:20px;font-weight:800;text-align:center;padding:8px;background:var(--bg);border-radius:10px;margin-top:8px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kpi{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}.kpi b{display:block;font-size:20px}.kpi span{font-size:11px;color:var(--mut)}
+@media(max-width:480px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.dg{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.dbig{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:10px}.dbig b{font-size:28px;display:block;line-height:1.1}.dbig span{font-size:12px;color:var(--mut)}
+.lrow{padding:7px 0;border-bottom:1px solid var(--bd)}.lrow:last-child{border:0}.lrow .top{display:flex;justify-content:space-between;gap:8px;font-size:14px}.lbar{height:7px;border-radius:4px;background:var(--bd);margin:4px 0 2px;overflow:hidden}.lbar i{display:block;height:100%;background:var(--pri)}
+.dh{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px;font-weight:700}
+.sug{border:1px solid var(--bd);border-radius:10px;margin-top:6px;max-height:300px;overflow:auto}.sug div{padding:8px 10px;border-bottom:1px solid var(--bd);cursor:pointer}.sug div:last-child{border:0}.sug div:active{background:var(--bg)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.chip{flex:0 0 auto;padding:7px 14px;border-radius:99px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-weight:700}.chip.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+</style></head><body>
+<header><h1>FIFO Pick Scanner<small id="hdrSub"></small></h1><button id="btnHome">Home</button><button id="btnRep">Report</button></header>
+<main>
+<!-- HOME -->
+<section id="vHome">
+ <div class="card"><h2>Pick plan</h2>
+  <div id="pInfo"></div>
+  <div class="pill" style="margin-top:8px"><button class="btn sec" id="btnUpPlan">⬆ Load plan (.xlsx / .csv)</button><button class="btn sec" id="btnDefPlan">Use built-in plan</button></div>
+  <input type="file" id="fPlan" class="hide" accept=".xlsx,.xlsm,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+  <p class="mut" style="font-size:12px;margin:8px 0 0">Columns needed: Material, Batch, Qty (kg). Optional: Material Description, Storage Loc, Std Pkg, Packs. Keep the lines in FIFO order (oldest batch first) within each material.</p></div>
+ <div class="card"><h2>Start picking</h2>
+  <div class="bar"><i id="hBar" style="width:0"></i></div><div class="mut" id="hProg"></div>
+  <label class="l">Picker name</label><input id="picker" placeholder="Your name / ID (saved in the log)">
+  <button class="btn" id="btnStart" style="width:100%;margin-top:12px;font-size:16px">Start picking ▶</button></div>
+ <div class="card"><h2>Extract pick log</h2>
+  <div class="pill"><button class="btn ok" id="btnExport">⬇ Download Excel</button><button class="btn ok" id="btnShare">📤 Share Excel</button></div>
+  <div class="pill" style="margin-top:8px"><button class="btn sec" id="btnCsv">Download CSV</button><button class="btn sec" id="btnCopy">Copy for Excel</button></div>
+  <div class="pill" style="margin-top:8px"><button class="btn sec" id="btnBackup">Backup (JSON)</button><button class="btn sec" id="btnRestore">Restore</button><button class="btn bad" id="btnClear">Clear log</button></div>
+  <button class="btn sec hide" id="btnPerm" style="width:100%;margin-top:8px">⚙ Camera / app permissions</button>
+  <input type="file" id="fRestore" class="hide" accept=".json">
+  <p class="mut" style="margin:8px 0 0;font-size:12px">Scans are saved on this device automatically. "Copy for Excel" gives Time, Picker, QR, Bags, Qty per bag – paste into the Scan Log sheet (cell A6) as before.</p></div>
+</section>
+<!-- SCAN -->
+<section id="vScan" class="hide">
+ <div class="card">
+  <div class="bar"><i id="curBar" style="width:0"></i></div><div class="mut" id="curProg"></div>
+ </div>
+ <div class="card hide" id="lastBox"><h2>Last scanned</h2><div id="lastBody"></div></div>
+ <div class="card">
+  <div class="pill"><button class="btn" id="btnCam">📷 Start camera scan</button><button class="btn sec" id="btnPhoto">🖼 Photo scan</button></div>
+  <input type="file" id="fPhoto" accept="image/*" capture="environment" class="hide">
+  <div class="row" style="margin-top:10px"><input id="manual" inputmode="none" placeholder="Scan / type tag, or search…" autocomplete="off" autocapitalize="characters"><button class="btn sec" id="btnKb" style="flex:0 0 auto" title="Show / hide keyboard">⌨</button><button class="btn" id="btnGo" style="flex:0 0 auto">Add</button></div>
+  <div id="sug" class="sug hide"></div>
+  <button class="btn sec" id="btnNew" style="width:100%;margin-top:10px">➕ Material not in list? Add it as NEW item</button>
+  <div class="mut" id="camMsg" style="font-size:12px;margin-top:6px"></div>
+ </div>
+ <div class="card"><div class="tabs"><button id="tabPlan" class="on">Plan progress</button><button id="tabLog">Scan log</button></div>
+  <div class="chips" id="flt" style="margin:0 0 6px"><button class="chip on" data-f="all">All</button><button class="chip" data-f="PENDING">Pending</button><button class="chip" data-f="PARTIAL">Partial</button><button class="chip" data-f="COMPLETE">Done</button></div>
+  <div id="scanList"></div></div>
+</section>
+<!-- REPORT -->
+<section id="vRep" class="hide">
+ <div class="card"><h2>Dashboard</h2><div id="dash"></div></div>
+ <div class="card"><h2>Line-wise plan vs picked</h2><div class="row"><select id="repMode"><option value="all">All lines</option><option value="PENDING">Pending</option><option value="PARTIAL">Partial</option><option value="COMPLETE">Complete</option><option value="extra">Not in plan / wrong batch / extra</option></select></div>
+ <div class="scroll" style="margin-top:8px"><table id="repTbl"></table></div></div>
+ <div class="pill"><button class="btn ok" id="btnExport2">⬇ Download Excel</button><button class="btn ok" id="btnShare2">📤 Share Excel</button></div>
+</section>
+</main>
+<div id="sheetHost"></div>
+<script>
+const XL=(()=>{
+const enc=new TextEncoder(),dec=new TextDecoder('utf-8');
+const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=crcT[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zip(files){
+ const parts=[],cd=[];let off=0;const dt=new Date();
+ const time=(dt.getHours()<<11)|(dt.getMinutes()<<5)|(dt.getSeconds()>>1),date=((dt.getFullYear()-1980)<<9)|((dt.getMonth()+1)<<5)|dt.getDate();
+ for(const f of files){const nm=enc.encode(f.name),crc=crc32(f.data),sz=f.data.length;
+  const lh=new DataView(new ArrayBuffer(30));lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(10,time,true);lh.setUint16(12,date,true);lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nm.length,true);
+  parts.push(new Uint8Array(lh.buffer),nm,f.data);
+  const ch=new DataView(new ArrayBuffer(46));ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(12,time,true);ch.setUint16(14,date,true);ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+  cd.push(new Uint8Array(ch.buffer),nm);off+=30+nm.length+sz}
+ let cds=0;cd.forEach(x=>cds+=x.length);
+ const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cds,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cd,new Uint8Array(e.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})}
+const xesc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'');
+const colName=i=>{let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
+const STYLES='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.000"/></numFmts><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="12"/><name val="Calibri"/></font></fonts><fills count="8"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0B5ED7"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF8CBAD"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFEB84"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC000"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="11"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+// cell: primitive or {v,s}; s: 2=red 3=green 4=yellow 5=orange
+function sheetXml(sh){
+ let x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0">'+(sh.plain?'':'<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>')+'</sheetView></sheetViews>';
+ if(sh.widths)x+='<cols>'+sh.widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join('')+'</cols>';
+ x+='<sheetData>';let maxc=0;
+ sh.rows.forEach((r,ri)=>{x+=`<row r="${ri+1}">`;r.forEach((c,ci)=>{let v=c,s=(ri===0&&!sh.plain)?1:0;if(c&&typeof c==='object'){v=c.v;s=c.s||0}
+   if(v===null||v===undefined||v==='')return;const ref=colName(ci)+(ri+1);if(ci+1>maxc)maxc=ci+1;
+   if(typeof v==='number'&&isFinite(v))x+=`<c r="${ref}"${s?` s="${s}"`:''}><v>${v}</v></c>`;
+   else x+=`<c r="${ref}"${s?` s="${s}"`:''} t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`});x+='</row>'});
+ x+='</sheetData>';if(!sh.plain&&sh.rows.length>1&&sh.rows[0].length)x+=`<autoFilter ref="A1:${colName(sh.rows[0].length-1)}${sh.rows.length}"/>`;
+ return x+'</worksheet>'}
+function writeXlsx(sheets){
+ const F=[];const add=(n,t)=>F.push({name:n,data:enc.encode(t)});
+ add('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')+'</Types>');
+ add('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+ add('xl/workbook.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'+sheets.map((s,i)=>`<sheet name="${xesc(s.name.replace(/[\[\]:*?\/\\]/g,' ').slice(0,31))}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')+'</sheets></workbook>');
+ add('xl/_rels/workbook.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')+`<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
+ add('xl/styles.xml',STYLES);
+ sheets.forEach((s,i)=>add(`xl/worksheets/sheet${i+1}.xml`,sheetXml(s)));
+ return zip(F)}
+// ---- reader
+async function unzip(buf){
+ const u=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
+ for(let i=u.length-22;i>=Math.max(0,u.length-70000);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+ if(e<0)throw new Error('Not a valid .xlsx file');
+ const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const ent={};
+ for(let k=0;k<n;k++){if(dv.getUint32(p,true)!==0x02014b50)break;
+  const method=dv.getUint16(p+10,true),csz=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+  ent[dec.decode(u.subarray(p+46,p+46+nl))]={method,csz,lo};p+=46+nl+el+cl}
+ return{u,dv,ent}}
+async function getText(z,name){
+ const en=z.ent[name];if(!en)return null;const lo=en.lo;
+ const st=lo+30+z.dv.getUint16(lo+26,true)+z.dv.getUint16(lo+28,true);const raw=z.u.subarray(st,st+en.csz);
+ if(en.method===0)return dec.decode(raw);
+ if(en.method!==8)throw new Error('Unsupported zip compression');
+ if(typeof DecompressionStream==='undefined')throw new Error('This browser cannot open .xlsx. Use latest Chrome/Edge, or upload a CSV.');
+ return await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()}
+const unx=s=>s.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);/g,(m,g)=>g==='lt'?'<':g==='gt'?'>':g==='amp'?'&':g==='quot'?'"':g==='apos'?"'":g[1]==='x'?String.fromCodePoint(parseInt(g.slice(2),16)):String.fromCodePoint(+g.slice(1)));
+const attr=(s,n)=>{const m=new RegExp('(?:^|\\s)'+n+'="([^"]*)"').exec(s);return m?unx(m[1]):null};
+const tText=x=>{let o='';x=x.replace(/<rPh[\s\S]*?<\/rPh>/g,'');const re=/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g;let m;while((m=re.exec(x)))o+=m[1];return unx(o)};
+function colIdx(ref){let n=0;for(const ch of ref){const c=ch.charCodeAt(0);if(c<65||c>90)break;n=n*26+c-64}return n-1}
+async function readXlsx(buf){
+ const z=await unzip(buf);
+ const wb=await getText(z,'xl/workbook.xml');if(!wb)throw new Error('Not an Excel workbook');
+ const rels=await getText(z,'xl/_rels/workbook.xml.rels')||'';const rt={};
+ (rels.match(/<Relationship\b[^>]*>/g)||[]).forEach(r=>{rt[attr(r,'Id')]=attr(r,'Target')});
+ const ssx=await getText(z,'xl/sharedStrings.xml');const ss=[];
+ if(ssx)(ssx.match(/<si\b[\s\S]*?<\/si>|<si\/>/g)||[]).forEach(s=>ss.push(tText(s)));
+ const out=[];
+ for(const sh of (wb.match(/<sheet\b[^>]*>/g)||[])){
+  const name=attr(sh,'name'),rid=attr(sh,'r:id');let t=rt[rid]||'';t=t.replace(/^\//,'');if(!t.startsWith('xl/'))t='xl/'+t;
+  const x=await getText(z,t);if(x==null)continue;const rows=[];
+  const re=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;let m;
+  while((m=re.exec(x))){const a=m[1],body=m[2]||'';const ref=attr(a,'r');if(!ref)continue;const ty=attr(a,'t');
+   const ci=colIdx(ref),ri=parseInt(ref.replace(/\D/g,''),10)-1;let v='';
+   const vm=/<v>([\s\S]*?)<\/v>/.exec(body);
+   if(ty==='s'&&vm)v=ss[+vm[1]]??'';else if(ty==='inlineStr')v=tText(body);else if(vm){v=unx(vm[1]);if(!ty||ty==='n'){const f=parseFloat(v);if(!isNaN(f))v=f}}
+   (rows[ri]=rows[ri]||[])[ci]=v}
+  for(let i=0;i<rows.length;i++){rows[i]=rows[i]||[];for(let j=0;j<rows[i].length;j++)if(rows[i][j]===undefined)rows[i][j]=''}
+  out.push({name,rows})}
+ return out}
+function parseCsv(t){const rows=[];let r=[],c='',q=false;t=t.replace(/^\ufeff/,'');
+ for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);rows.push(r);r=[];c=''}else c+=ch}
+ if(c!==''||r.length){r.push(c);rows.push(r)}return rows}
+return{writeXlsx,readXlsx,parseCsv}})();
+const DEF_PLAN=[{"m":"J-R1001010","d":"J-ISNR-20/SVR-10/ISNR-10/TSR","b":"261254_S10","l":1030,"k":1260,"s":1260.0},{"m":"J-R1201150","d":"J-NR CRUMB RUBBER 120 MESH","b":"261620_125","l":1030,"k":125,"s":25.0},{"m":"J-R1601010","d":"J-IPOL 701 / ELASTO 710/POWE","b":"261727B_JW","l":1030,"k":76,"s":1.0},{"m":"J-R1801030","d":"J-ANTIOXIDANT - TDQ","b":"261474_STA","l":1030,"k":25,"s":25.0},{"m":"J-R1901010","d":"J-MICROCRYSTALLINE WAX","b":"261863A_JW","l":1030,"k":25,"s":25.0},{"m":"J-R2201010","d":"J-ZINC OXIDE WS","b":"261727C_JW","l":1030,"k":100,"s":25.0},{"m":"J-R2201020","d":"J-STEARIC ACID","b":"261728A_JW","l":1030,"k":50,"s":50.0},{"m":"J-R2401040","d":"J-ULTRAFLOW 700S / ZINCOLET ","b":"261516_Z70","l":1030,"k":50,"s":25.0},{"m":"J-R2401240","d":"J-AUROAID AR 262 ANTI-ABRASI","b":"261398_262","l":1030,"k":50,"s":25.0},{"m":"R1001010","d":"ISNR-20/SVR-10/ISNR-10/TSR 1","b":"260922/IND","l":1001,"k":2000,"s":1000.0},{"m":"R1101010","d":"POLYISOPRENE SKI 3 / IR-2200","b":"261062/970","l":1002,"k":3780,"s":1260.0},{"m":"R1101020","d":"SBR 1502","b":"261076/IND","l":1032,"k":7560,"s":1260.0},{"m":"R1101210","d":"PBR- POLYBUTADINE RUBBER GP","b":"260653/SYN","l":1002,"k":960,"s":960.0},{"m":"R1201020","d":"RECLAIM RUBBER DHT60 / NRM60","b":"260937/GRP","l":1001,"k":4200,"s":1050.0},{"m":"R1201020","d":"RECLAIM RUBBER DHT60 / NRM60","b":"260937/GRP","l":1032,"k":1050,"s":1050.0},{"m":"R1201070","d":"EPDM Reclaim Rubber","b":"261043/GRP","l":1001,"k":150,"s":50.0},{"m":"R1201150","d":"NR CRUMB RUBBER 120 MESH","b":"260297/TIN","l":1001,"k":550,"s":25.0},{"m":"R1301010","d":"UNVULVANIZED RUBBER+CARBON M","b":"260860/TEG","l":1002,"k":3780,"s":1260.0},{"m":"R1401020","d":"CARBON BLACK N220","b":"260769/EJB","l":1001,"k":2100,"s":1050.0},{"m":"R1401030","d":"CARBON BLACK N330","b":"260970/BJB","l":1001,"k":1000,"s":1000.0},{"m":"R1401030","d":"CARBON BLACK N330","b":"261045/BJB","l":1032,"k":1000,"s":1000.0},{"m":"R1401040","d":"CARBON BLACK N339","b":"260965/HPB","l":1001,"k":1000,"s":1000.0},{"m":"R1401040","d":"CARBON BLACK N339","b":"260996/HPB","l":1032,"k":2000,"s":1000.0},{"m":"R1401210","d":"AUSTIN BLACK 325","b":"260671/CFI","l":1032,"k":68.01,"s":22.67},{"m":"R1401415","d":"REGENERATED CARBON BLACK- PE","b":"260778/MAJ","l":1001,"k":1500,"s":500.0},{"m":"R1501020","d":"SILICA MFILL 200S","b":"260851/MAD","l":1001,"k":1200,"s":600.0},{"m":"R1601010","d":"IPOL 701 / ELASTO 710/POWER ","b":"260899/GPL","l":1001,"k":406,"s":1.0},{"m":"R1601050","d":"IPOL 2300","b":"261047/GPL","l":1001,"k":210,"s":210.0},{"m":"R1701050","d":"ACCELERATOR TBBS / NS2","b":"260935/SHA","l":1033,"k":25,"s":25.0},{"m":"R1701070","d":"ACCELERATOR CBS","b":"260546/SHN","l":1033,"k":50,"s":25.0},{"m":"R1701080","d":"ACCELERATOR MBTS","b":"260910/SHD","l":1033,"k":25,"s":25.0},{"m":"R1801010","d":"ANTIOXIDANT - 2MBI","b":"260548/JIN","l":1032,"k":25,"s":25.0},{"m":"R1801030","d":"ANTIOXIDANT - TDQ","b":"260910/SHA","l":1033,"k":200,"s":25.0},{"m":"R1801030","d":"ANTIOXIDANT - TDQ","b":"261093/WUE","l":1033,"k":75,"s":25.0},{"m":"R1801040","d":"ANTIOXIDANT - TDQ (NOCIL)","b":"260801/NOI","l":1032,"k":25,"s":25.0},{"m":"R1901010","d":"MICROCRYSTALLINE WAX","b":"260582/RAJ","l":1032,"k":175,"s":25.0},{"m":"R1901050","d":"ANTIOXIDANT - 6PPD","b":"260910/SHN","l":1033,"k":325,"s":25.0},{"m":"R2001030","d":"SULPHUR POWDER","b":"260997/YOG","l":1032,"k":100,"s":50.0},{"m":"R2001130","d":"LUPEROX DC40KE","b":"260969/ARK","l":1001,"k":10,"s":10.0},{"m":"R2101010","d":"ALUMINIUM TRI HYDRATE ATH NC","b":"260939/NIK","l":1032,"k":1600,"s":1600.0},{"m":"R2101290","d":"CORROSAFE 4010  ANTIMONY TRI","b":"260333/SHA","l":1032,"k":25,"s":25.0},{"m":"R2101070","d":"SAYTEX 8010","b":"260831/ALB","l":1032,"k":125,"s":25.0},{"m":"R2101080","d":"CPW LIQUID 70% (KLJ KANACHLO","b":"260250/KLJ","l":1001,"k":750,"s":250.0},{"m":"R2101090","d":"CPW SOLID (JINGCHENG)","b":"260571/HAN","l":1033,"k":50,"s":25.0},{"m":"R2101090","d":"CPW SOLID (JINGCHENG)","b":"260900/HAN","l":1033,"k":400,"s":25.0},{"m":"R2101250","d":"ALUMINIUM HYDROXIDE, NC-111","b":"260210/NIN","l":1032,"k":175,"s":25.0},{"m":"R2201015","d":"ZINC OXIDE WS - RUBAMIN (ZIN","b":"260600/RUB","l":1032,"k":125,"s":25.0},{"m":"R2201020","d":"STEARIC ACID","b":"260933/3F","l":1032,"k":375,"s":25.0},{"m":"R2201030","d":"ULTRABLEND 4000/ ZINCOLET 40","b":"260349/R40","l":1032,"k":250,"s":25.0},{"m":"R2201050","d":"MAGNESIUM OXIDE","b":"260915/EUR","l":1032,"k":25,"s":25.0},{"m":"R2301090","d":"TECHNIC KR140 / KORESIN","b":"251022/TWC","l":1032,"k":25,"s":25.0},{"m":"R2401010","d":"ZINCOLET FL","b":"260587/ZFL","l":1032,"k":25,"s":25.0},{"m":"R2401030","d":"HARMAVIS 50(PIB KVIS10)/200","b":"261040/KOT","l":1032,"k":360,"s":180.0},{"m":"R2401040","d":"ULTRAFLOW 700S / ZINCOLET 70","b":"261006/P70","l":1032,"k":225,"s":25.0},{"m":"R2401240","d":"AUROAID AR 262 (ANTI-ABRASIO","b":"260905/AUO","l":1032,"k":175,"s":25.0},{"m":"R2501040","d":"TECHPRO SCH / MD1 / PP-1891S","b":"260730/SCH","l":1032,"k":25,"s":25.0},{"m":"R2501050","d":"MDIV / CHM65","b":"260880/SHD","l":1033,"k":50,"s":25.0},{"m":"R2501060","d":"RESORCINOL FORMALDEHYDE RESI","b":"261006/B19","l":1032,"k":225,"s":25.0},{"m":"R2501100","d":"AUROBOND 825 / POWERPLAST MR","b":"260788/25L","l":1032,"k":80,"s":20.0},{"m":"R2801030","d":"FORCAL S / MICROCARB CTD 103","b":"261033/DIP","l":1001,"k":1500,"s":1500.0},{"m":"R2901030","d":"PEG 4000","b":"260738/IND","l":1032,"k":50,"s":25.0},{"m":"R2901050","d":"GRAPHITE FINES","b":"260973/VRA","l":1001,"k":25,"s":25.0}];
+window.onerror=function(m,u,l){try{var d=document.createElement('div');d.className='toast';d.style.background='#c0262d';d.textContent='JS error: '+m+' (line '+l+')';document.body.appendChild(d);setTimeout(function(){d.remove()},6000)}catch(e){}};
+const DEF_NAME='Built-in plan';
+const $=id=>document.getElementById(id);
+const SK='fifo_s2',TOL=0.001;
+const APP=window.AndroidApp||null;let scanLoop=false;
+let S={plan:[],log:[],pk:'',newItems:{},planName:''};
+try{const x=JSON.parse(localStorage.getItem(SK));if(x&&Array.isArray(x.plan)&&x.plan.length)S=Object.assign(S,x)}catch(e){}
+function save(){try{localStorage.setItem(SK,JSON.stringify(S))}catch(e){toast('Storage full/blocked – export now!')}}
+function toast(t,act,fn){const d=document.createElement('div');d.className='toast';d.textContent=t;
+  if(act){const b=document.createElement('button');b.textContent=act;b.style.cssText='margin-left:12px;background:none;border:0;color:#ffe14d;font-weight:800;font-size:15px';b.onclick=()=>{d.remove();fn()};d.appendChild(b)}
+  document.body.appendChild(d);setTimeout(()=>d.remove(),act?7000:2800)}
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const r3=n=>Math.round((Number(n)||0)*1000)/1000;
+const f=n=>r3(n).toLocaleString('en-IN');
+const pad=n=>(n<10?'0':'')+n;
+const fmtT=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+const stamp=()=>{const d=new Date();return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ---------- tag normalising: this is what makes scanning tolerant.
+   Upper-case, no spaces / line-breaks / control characters, no scanner prefix like ]Q1,
+   so "r1401030260970/bjb\r\n" and "R1401030 260970/BJB" both equal R1401030260970/BJB. */
+function nk(s){return String(s==null?'':s).replace(/^\][A-Za-z][0-9A-Za-z]/,'').toUpperCase().replace(/[\u0000-\u001f\u007f\u200b-\u200d\ufeff\u00a0\s|;,]+/g,'')}
+
+/* ---------- state preparation */
+function prep(){
+  if(!Array.isArray(S.log))S.log=[];
+  if(!S.newItems||typeof S.newItems!=='object')S.newItems={};
+  if(!Array.isArray(S.plan)||!S.plan.length){S.plan=DEF_PLAN.map(x=>Object.assign({},x));S.planName=DEF_NAME}
+  if(!S.planName)S.planName='Saved plan';
+  S.plan.forEach(x=>{x.m=String(x.m);x.b=String(x.b);x.l=x.l==null?'':String(x.l);x.d=x.d==null?'':String(x.d);x.k=Number(x.k)||0;x.s=Number(x.s)>0?Number(x.s):1;x.key=nk(x.m)+nk(x.b);x.mk=nk(x.m)});
+  S.log.forEach((l,i)=>{if(!l.id)l.id='o'+i+uid();if(!l.ts)l.ts=Date.parse(String(l.t).replace(' ','T'))||0;l.tot=Number(l.tot)||0});
+}
+prep();
+
+/* ---------- plan maths */
+function agg(){
+  const plKey={},pick={};
+  S.plan.forEach(x=>{plKey[x.key]=(plKey[x.key]||0)+x.k});
+  S.log.forEach(l=>{const k=nk(l.q);pick[k]=(pick[k]||0)+(Number(l.tot)||0)});
+  const cum={},al=[];
+  S.plan.forEach(x=>{const c=cum[x.key]||0;al.push(Math.min(x.k,Math.max(0,(pick[x.key]||0)-c)));cum[x.key]=c+x.k});
+  return{plKey,pick,al};
+}
+const isNewS=s=>s==='NEW'||s==='UNK';
+function sText(s){s=String(s||'');return s==='OK'?'OK':s==='EXTRA'?'EXTRA QTY (over plan)':s.indexOf('WARN')===0?'OK - earlier batch '+s.slice(5)+' pending':(s==='WRONG'||s==='WRONG BATCH')?'WRONG BATCH (FIFO violation)':isNewS(s)?'NEW ITEM (not in plan)':s}
+function tag(s){s=String(s||'');return s==='OK'?'<span class="tag t-ok">FIFO OK</span>':s==='EXTRA'?'<span class="tag t-warn">Extra qty</span>':s.indexOf('WARN')===0?'<span class="tag t-warn">Earlier batch pending</span>':(s==='WRONG'||s==='WRONG BATCH')?'<span class="tag t-bad">Wrong batch</span>':isNewS(s)?'<span class="tag t-new">NEW – not in plan</span>':'<span class="tag t-gray">'+esc(s)+'</span>'}
+function sTag(s){const m={'COMPLETE':'t-ok','PARTIAL':'t-warn','PENDING':'t-gray','NEW ITEM':'t-new','WRONG BATCH':'t-bad'};return '<span class="tag '+(m[s]||'t-gray')+'">'+s+'</span>'}
+function entInfo(l){const k=nk(l.q),x=S.plan.find(p=>p.key===k);
+  if(x)return{m:x.m,d:x.d,bt:x.b,um:'KG',sl:x.l};
+  const n=S.newItems[k]||{};
+  return{m:l.m||n.m||'',d:l.d||n.d||'',bt:l.bt||n.bt||'',um:l.um||n.um||'KG',sl:l.sl||n.l||''}}
+function hdr(){const A=agg();let t=0,d=0;S.plan.forEach((x,i)=>{t+=x.k;d+=A.al[i]});
+  const bad=S.log.filter(l=>l.s!=='OK').length;
+  $('hdrSub').textContent=S.planName+' · '+r3(d)+'/'+r3(t)+' kg · '+S.log.length+' scans'+(bad?' · issues '+bad:'')}
+
+/* ---------- beep / vibrate */
+function beep(n){try{const c=new (window.AudioContext||window.webkitAudioContext)();for(let i=0;i<n;i++){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=n===1?1000:400;g.gain.value=.15;o.start(c.currentTime+i*.18);o.stop(c.currentTime+i*.18+.12)}}catch(e){}if(navigator.vibrate)navigator.vibrate(n===1?60:[80,60,80])}
+
+/* ---------- navigation */
+function show(v){['vHome','vScan','vRep'].forEach(x=>$(x).classList.toggle('hide',x!==v));if(v!=='vScan')scanLoop=false;window.scrollTo(0,0)}
+$('btnHome').onclick=()=>{renderHome();show('vHome')};
+$('btnRep').onclick=()=>{renderReport();show('vRep')};
+$('picker').value=S.pk||'';
+$('picker').oninput=e=>{S.pk=e.target.value.trim();save()};
+function renderHome(){
+  hdr();$('picker').value=S.pk||'';
+  const A=agg();let t=0,d=0,mats=new Set();S.plan.forEach((x,i)=>{t+=x.k;d+=A.al[i];mats.add(x.m)});
+  $('pInfo').innerHTML='Active plan: <b>'+esc(S.planName)+'</b><div class="mut">'+S.plan.length+' lines · '+mats.size+' materials · '+f(t)+' kg planned</div>';
+  $('hBar').style.width=(t?Math.min(100,d/t*100):0)+'%';
+  $('hProg').textContent=f(d)+' of '+f(t)+' kg picked · '+S.log.length+' scan entries';
+}
+$('btnStart').onclick=()=>openScan();
+let tab='plan',flt='all',lastKey=null;
+function openScan(){renderScan();show('vScan');$('lastBox').classList.add('hide');lastKey=null;setTimeout(()=>$('manual').focus(),100)}
+$('tabPlan').onclick=()=>{tab='plan';renderScan()};$('tabLog').onclick=()=>{tab='log';renderScan()};
+document.querySelectorAll('#flt .chip').forEach(c=>c.onclick=()=>{flt=c.dataset.f;renderScan()});
+
+/* ---------- scan screen lists */
+function lineStatus(got,k){return got>=k-TOL?'COMPLETE':got>0?'PARTIAL':'PENDING'}
+function renderScan(){
+  hdr();const A=agg();let t=0,d=0,nc=0;S.plan.forEach((x,i)=>{t+=x.k;d+=A.al[i];if(A.al[i]>=x.k-TOL)nc++});
+  $('curProg').textContent=f(d)+' of '+f(t)+' kg picked · '+nc+' of '+S.plan.length+' lines complete';$('curBar').style.width=(t?Math.min(100,d/t*100):0)+'%';
+  $('tabPlan').classList.toggle('on',tab==='plan');$('tabLog').classList.toggle('on',tab==='log');
+  $('flt').classList.toggle('hide',tab!=='plan');
+  document.querySelectorAll('#flt .chip').forEach(c=>c.classList.toggle('on',c.dataset.f===flt));
+  if(tab==='plan'){
+    let h='';
+    const ex=planRows().filter(r=>r.kind!=='plan');
+    if(ex.length&&(flt==='all')){h+=ex.map(r=>`<div class="item ${r.q===lastKey?'hl':''}"><div class="row"><div style="flex:2"><b>${esc(r.m||'—')}</b> · Batch ${esc(r.b||'—')}<div style="font-weight:700">${esc(r.d||r.q)}</div><div class="mut" style="font-size:12px">Tag: ${esc(r.q)}</div></div><div style="flex:1;text-align:right"><div class="big">${f(r.got)} ${esc(r.um||'kg')}</div><div>${f(r.bags)} bag(s)</div>${sTag(r.st)}</div></div></div>`).join('')}
+    S.plan.forEach((x,i)=>{const got=r3(A.al[i]),st=lineStatus(got,x.k);if(flt!=='all'&&st!==flt)return;
+      const pc=x.k?Math.min(100,got/x.k*100):0;
+      h+=`<div class="item ${x.key===lastKey?'hl':''}"><div class="row"><div style="flex:2"><b>${esc(x.m)}</b> · Batch <b>${esc(x.b)}</b><div style="font-weight:700">${esc(x.d)}</div><div class="mut" style="font-size:12px">SLoc ${esc(x.l||'—')} · std pack ${f(x.s)} kg</div><div class="lbar"><i style="width:${pc}%;background:${st==='COMPLETE'?'var(--ok)':'var(--pri)'}"></i></div>${st!=='COMPLETE'?`<button class="btn sm" data-pick="${esc(x.key)}">Pick this ▶</button>`:''}</div><div style="flex:1;text-align:right"><div class="big">${f(got)} / ${f(x.k)} kg</div><div>${f(got/x.s)} / ${f(x.k/x.s)} bags</div>${sTag(st)}</div></div></div>`});
+    $('scanList').innerHTML=h||'<p class="mut">Nothing to show.</p>';
+    document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>handle(b.dataset.pick));
+  }else{
+    const l=S.log.slice().reverse();
+    $('scanList').innerHTML=l.length?l.slice(0,100).map(e=>{const inf=entInfo(e);return `<div class="item"><div class="row"><div style="flex:2"><b>${esc(inf.m||'—')}</b> · ${esc(inf.bt||'—')}<div style="font-weight:700">${esc(inf.d||e.q)}</div><div class="mut" style="font-size:12px">${esc(e.t)} · ${esc(e.p||'—')} · ${esc(e.q)}</div><button class="btn bad sm" data-del="${esc(e.id)}" style="margin-top:6px">✕ Delete entry</button></div><div style="flex:1;text-align:right"><div class="big">${f(e.tot)} kg</div><div>${f(e.w)} x ${f(e.b)} bag(s)</div>${tag(e.s)}</div></div></div>`}).join('')+(l.length>100?'<p class="mut">Showing latest 100 of '+l.length+' – download Excel for all.</p>':''):'<p class="mut">No scans yet.</p>';
+    document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delEntry(b.dataset.del));
+  }
+  if(lastKey){const has=S.log.some(l=>nk(l.q)===lastKey);if(has)showLast(lastKey);else{$('lastBox').classList.add('hide');lastKey=null}}
+}
+function delEntry(id){const e=S.log.find(x=>x.id===id);if(!e||!confirm('Delete this entry ('+f(e.tot)+' kg)?'))return;
+  S.log=S.log.filter(x=>x.id!==id);save();renderScan();
+  toast('Entry deleted','UNDO',()=>{S.log.push(e);S.log.sort((a,b)=>(a.ts||0)-(b.ts||0));save();renderScan();toast('Restored')})}
+function showLast(key){
+  const ents=S.log.filter(l=>nk(l.q)===key);if(!ents.length)return;const e=ents[ents.length-1],A=agg(),inf=entInfo(e),pl=A.plKey[key],pk=A.pick[key]||0;
+  lastKey=key;$('lastBox').classList.remove('hide');
+  $('lastBody').innerHTML=`<div class="desc">${esc(inf.d||e.q)}</div><div><b>${esc(inf.m||'—')}</b> · Batch <b>${esc(inf.bt||'—')}</b> ${tag(e.s)}</div>
+  <div class="big" style="margin-top:4px">${f(e.b)} bag(s) × ${f(e.w)} = ${f(e.tot)} kg</div>
+  <div class="mut" style="font-size:13px">${pl!==undefined?'Picked <b>'+f(pk)+'</b> of planned <b>'+f(pl)+'</b> kg':'Not in plan · total picked <b>'+f(pk)+'</b> kg'}</div>
+  <button class="btn bad sm" id="lastDel" style="margin-top:8px">✕ Remove this scan</button>`;
+  $('lastDel').onclick=()=>delEntry(e.id)}
+
+/* ---------- search / manual entry */
+function searchPlan(q){const toks=q.toLowerCase().split(/\s+/).filter(Boolean);if(!toks.length)return[];
+  const A=agg(),seen=new Set(),res=[];
+  S.plan.forEach((x,i)=>{if(seen.has(x.key))return;const h=(x.m+' '+x.d+' '+x.b).toLowerCase();if(toks.every(t=>h.indexOf(t)>=0)){seen.add(x.key);res.push({x,rem:r3((A.plKey[x.key]||0)-(A.pick[x.key]||0))})}});
+  return res.sort((a,b)=>(b.rem>TOL?1:0)-(a.rem>TOL?1:0)).slice(0,30)}
+function renderSug(){const q=$('manual').value.trim(),box=$('sug');if(q.length<2){box.classList.add('hide');return}
+  const res=searchPlan(q);
+  box.innerHTML=res.map(o=>`<div data-k="${esc(o.x.key)}"><b>${esc(o.x.d||o.x.m)}</b><br><span class="mut">${esc(o.x.m)} · ${esc(o.x.b)} · SLoc ${esc(o.x.l||'—')} · ${o.rem>TOL?'remaining '+f(o.rem)+' kg':'fully picked'}</span></div>`).join('')+`<div data-new="1" style="color:var(--pri);font-weight:600">➕ Not in list? Add “${esc(q)}” as a NEW item</div>`;
+  box.classList.remove('hide');
+  box.querySelectorAll('[data-k]').forEach(d=>d.onclick=()=>{clearManual();handle(d.dataset.k)});
+  box.querySelector('[data-new]').onclick=()=>{clearManual();openNew(nk(q))}}
+function clearManual(){$('manual').value='';$('sug').classList.add('hide')}
+$('manual').oninput=function(){renderSug();clearTimeout(idleT);const v=this.value;
+  /* scanner guns that send no Enter: submit as soon as the text is exactly a plan tag */
+  idleT=setTimeout(()=>{if(S.plan.some(x=>x.key===nk(v))&&nk($('manual').value)===nk(v))submitManual()},350)};
+let idleT=null;
+function submitManual(){clearTimeout(idleT);const v=$('manual').value.trim();if(!v)return;
+  if(S.plan.some(x=>x.key===nk(v))){clearManual();handle(v);return}
+  if(v.length>=2&&searchPlan(v).length){renderSug();return}
+  clearManual();handle(v)}
+$('btnGo').onclick=submitManual;
+$('manual').onkeydown=e=>{if(e.key==='Enter'||e.keyCode===13){e.preventDefault();submitManual()}else if(e.key==='Tab'||e.keyCode===9){if($('manual').value.trim()){e.preventDefault();submitManual()}}};
+$('btnKb').onclick=()=>{const m=$('manual');m.inputMode=m.inputMode==='none'?'text':'none';m.blur();setTimeout(()=>m.focus(),50)};
+$('btnNew').onclick=()=>openNew('');
+
+/* ---------- scan handling (this decides OK / WRONG batch / NEW item) */
+function handle(raw){
+  const q=nk(raw);if(!q)return false;
+  if(document.querySelector('#sheetHost .overlay')){toast('Finish or cancel the open entry first');return false}
+  const lines=S.plan.filter(x=>x.key===q);
+  if(lines.length){beep(1);openSheet(q,'OK',lines,null);return true}
+  /* known material but batch not in plan -> FIFO violation (longest material code that the tag starts with) */
+  let mat=null;S.plan.forEach(x=>{if(q.length>x.mk.length&&q.indexOf(x.mk)===0&&(!mat||x.mk.length>mat.mk.length))mat=x});
+  if(mat){beep(2);openSheet(q,'WRONG',[],mat);return true}
+  /* only the material code was typed / scanned -> show its batches so the right one can be chosen */
+  if(S.plan.some(x=>x.mk===q)){$('manual').value=q;renderSug();toast('Choose the batch from the list');return false}
+  beep(2);openNew(q);return true}
+
+/* ---------- entry sheet (quantity for plan lines / wrong batch / NEW item) */
+function openNew(code){
+  if(document.querySelector('#sheetHost .overlay')){toast('Finish or cancel the open entry first');return}
+  beep(2);openSheet(code,'NEW',[],null)}
+function openSheet(q,kind,lines,mat){
+  const A=agg(),ov=document.createElement('div');ov.className='overlay';
+  const first=lines[0]||null;let top='',pl=0,pk=0,pend=null,defW='',nw=S.newItems[q]||{};
+  if(kind==='OK'){
+    pl=A.plKey[q]||0;pk=A.pick[q]||0;defW=first.s;
+    const i0=S.plan.findIndex(x=>x.key===q);
+    for(let i=0;i<i0;i++){const x=S.plan[i];if(x.m===first.m&&x.key!==q&&A.al[i]<x.k-TOL){pend={x:x,rem:r3(x.k-A.al[i])};break}}
+    top=`<div class="row"><div class="mut" style="flex:1">QR: ${esc(q)}</div><div style="flex:0 0 auto">${tag(pend?'WARN:'+pend.x.b:'OK')}</div></div>
+    <div class="desc">${esc(first.d||first.m)}</div><div><b>${esc(first.m)}</b> · Batch <b>${esc(first.b)}</b> · std pack <b>${f(first.s)} kg</b></div>
+    <div class="mut" style="margin-top:6px">Plan: ${lines.map(x=>'SLoc '+esc(x.l||'—')+' <b>'+f(x.k)+' kg</b>').join(' · ')}<br>Planned <b>${f(pl)}</b> kg · picked so far <b>${f(pk)}</b> kg · balance <b>${f(Math.max(0,pl-pk))}</b> kg</div>
+    ${pend?`<p style="color:var(--warn);font-weight:700;margin:8px 0 0">⚠ FIFO: earlier batch <b>${esc(pend.x.b)}</b> (SLoc ${esc(pend.x.l||'—')}) is not finished – ${f(pend.rem)} kg still pending. Pick that first, or save this anyway.</p>`:''}
+    ${pl-pk<=TOL?`<p style="color:var(--warn);font-weight:700;margin:8px 0 0">This batch is already fully picked – more will be saved as EXTRA.</p>`:''}`;
+  }else if(kind==='WRONG'){
+    const exp=S.plan.map((x,i)=>({x:x,rem:r3(x.k-A.al[i])})).filter(o=>o.x.m===mat.m);
+    top=`<div class="row"><div class="mut" style="flex:1">QR: ${esc(q)}</div><div style="flex:0 0 auto">${tag('WRONG')}</div></div>
+    <div class="desc">${esc(mat.d||mat.m)}</div><div><b>${esc(mat.m)}</b> · Batch <b>${esc(q.slice(mat.mk.length))}</b> (not in plan)</div>
+    <p style="color:var(--bad);font-weight:700;margin:8px 0 0">FIFO VIOLATION – this batch is not in the plan. Expected batch(es), oldest first:</p>
+    <div class="mut">${exp.map(o=>esc(o.x.b)+' @'+esc(o.x.l||'—')+' – '+(o.rem>TOL?'remaining '+f(o.rem)+' kg':'done')).join('<br>')}</div>
+    <p class="mut" style="margin:6px 0 0">You can still save it – it is flagged WRONG BATCH in the log and report.</p>`;
+  }else{
+    top=`<div class="row"><div class="mut" style="flex:1">Material not in the pick plan</div><div style="flex:0 0 auto">${tag('NEW')}</div></div>
+    <p style="color:var(--bad);font-weight:700;margin:6px 0">Not found in plan. Enter details – it is saved as a NEW item and listed in the Excel / report.</p>
+    <label class="l">QR / tag text ${q?'':'(optional – leave empty to use material + batch)'}</label><input id="shTag" value="${esc(q)}" autocapitalize="characters" autocomplete="off">
+    <label class="l">Material description *</label><input id="shDesc" value="${esc(nw.d||'')}" placeholder="e.g. CARBON BLACK N550">
+    <div class="row"><div><label class="l">Material code</label><input id="shMat" value="${esc(nw.m||'')}" autocapitalize="characters"></div><div><label class="l">Batch</label><input id="shBatch" value="${esc(nw.bt||'')}" autocapitalize="characters"></div></div>
+    <div class="row"><div><label class="l">Storage loc</label><input id="shSl" value="${esc(nw.l||'')}"></div><div style="flex:0 0 90px"><label class="l">UM</label><select id="shUm">${['KG','L','M','NOS','MT'].map(u=>`<option ${u===(nw.um||'KG')?'selected':''}>${u}</option>`).join('')}</select></div></div>`;
+    defW=nw.w||'';
+  }
+  ov.innerHTML=`<div class="sheet">${top}
+  <div class="row" style="margin-top:10px"><div><label class="l">No. of bags</label><input id="shB" type="number" inputmode="numeric" step="any" min="0"></div><div><label class="l">Qty per bag (kg)</label><input id="shW" type="number" inputmode="decimal" step="any" min="0" value="${defW}"></div></div>
+  <div class="total" id="shT">Total: 0 kg</div><div id="shNote" style="font-weight:700;text-align:center;margin-top:4px"></div>
+  <div class="row" style="margin-top:12px"><button class="btn sec" id="shCancel">Cancel</button><button class="btn ok" id="shSave">Save</button></div></div>`;
+  $('sheetHost').appendChild(ov);
+  const b=ov.querySelector('#shB'),w=ov.querySelector('#shW'),t=ov.querySelector('#shT'),nt=ov.querySelector('#shNote');
+  const calc=()=>{const tt=(parseFloat(b.value)||0)*(parseFloat(w.value)||0);t.textContent='Total: '+f(tt)+' kg';
+    nt.textContent=(kind==='OK'&&pk+tt>pl+TOL)?'Over plan by '+f(pk+tt-pl)+' kg – will be saved as EXTRA':''};
+  calc();b.oninput=calc;w.oninput=calc;
+  (kind==='NEW'?ov.querySelector('#shDesc'):b).focus();
+  const close=()=>{ov.remove();if(!(APP&&scanLoop))$('manual').focus();resumeScan()};
+  ov.querySelector('#shCancel').onclick=close;
+  const sv=()=>{
+    const bv=parseFloat(b.value),wv=parseFloat(w.value);
+    let e={id:uid(),ts:Date.now(),t:fmtT(new Date()),p:S.pk,b:bv,w:wv,tot:0,q:q,s:'OK',m:'',d:'',bt:'',um:'KG',sl:''};
+    if(kind==='NEW'){
+      const d=ov.querySelector('#shDesc').value.trim(),m=nk(ov.querySelector('#shMat').value),bt=nk(ov.querySelector('#shBatch').value),tg=nk(ov.querySelector('#shTag').value),
+        um=ov.querySelector('#shUm').value,sl=ov.querySelector('#shSl').value.trim(),code=tg||(m+bt);
+      if(!d){toast('Enter material description');ov.querySelector('#shDesc').focus();return}
+      if(!code){toast('Enter the tag text, or material code + batch');return}
+      if(S.plan.some(x=>x.key===code)){toast('That tag is in the plan – scan / pick it normally');return}
+      if(isNaN(bv)||bv<=0){toast('Enter number of bags');b.focus();return}
+      if(isNaN(wv)||wv<=0){toast('Enter qty per bag');w.focus();return}
+      e.q=code;e.s='NEW';e.m=m;e.d=d;e.bt=bt;e.um=um;e.sl=sl;
+      S.newItems[code]={m:m,d:d,bt:bt,um:um,l:sl,w:wv};
+      S.log.forEach(l=>{if(nk(l.q)===code){l.m=m;l.d=d;l.bt=bt;l.um=um;l.sl=sl}});
+    }else{
+      if(isNaN(bv)||bv<=0){toast('Enter number of bags');b.focus();return}
+      if(isNaN(wv)||wv<=0){toast('Enter qty per bag');w.focus();return}
+      if(kind==='OK'){e.m=first.m;e.d=first.d;e.bt=first.b;e.sl=lines.map(x=>x.l).filter(Boolean).join('/');
+        e.s=(pk+bv*wv>pl+TOL)?'EXTRA':pend?'WARN:'+pend.x.b:'OK'}
+      else{e.m=mat.m;e.d=mat.d;e.bt=q.slice(mat.mk.length);e.s='WRONG'}
+    }
+    e.tot=r3(bv*wv);e.b=bv;e.w=wv;
+    S.log.push(e);save();lastKey=nk(e.q);ov.remove();renderScan();showLast(lastKey);
+    beep(e.s==='OK'?1:2);
+    toast((e.s==='OK'?'Saved: ':'Saved ('+sText(e.s)+'): ')+(e.m||e.q)+' · '+f(bv)+' × '+f(wv)+' = '+f(e.tot)+' kg');
+    if(!(APP&&scanLoop))$('manual').focus();resumeScan()};
+  ov.querySelector('#shSave').onclick=sv;
+  ov.onkeydown=ev=>{if(ev.key==='Enter'&&ev.target.tagName==='INPUT'){const id=ev.target.id;if(id==='shB'){ev.preventDefault();w.focus()}else if(id==='shW'){ev.preventDefault();sv()}}};
+}
+
+/* ---------- camera / photo (native ZXing in the app) */
+function resumeScan(){if(APP&&scanLoop)setTimeout(()=>{if(scanLoop&&!document.querySelector('#sheetHost .overlay'))APP.scanQR()},450)}
+window.onNativeScan=code=>{if(!handle(code))resumeScan()};
+window.onNativeScanCancel=()=>{scanLoop=false;$('camMsg').textContent='Scanner closed. Tap "Start camera scan" to continue.'};
+window.onNativeScanError=msg=>{scanLoop=false;$('camMsg').textContent=msg};
+/* result of Photo scan: status = ok | none | cancel | error... */
+window.onNativePhoto=(code,status)=>{
+  if(status==='ok'&&code){$('camMsg').textContent='';if(!handle(code))resumeScan();return}
+  if(status==='cancel'){resumeScan();return}
+  const m=status==='none'?'No QR / barcode found in the photo. Come closer, keep the tag flat, in focus and well lit, then try again.':'Could not read the photo ('+status+').';
+  $('camMsg').textContent=m;toast(m);beep(2)};
+/* hardware scanner gun / handheld terminal (broadcast mode, see MainActivity) */
+window.onScan=code=>{if(!handle(code))resumeScan()};
+window.onAndroidBack=()=>{const o=document.querySelector('#sheetHost .overlay:last-child');
+  if(o){const c=o.querySelector('#shCancel');if(c)c.click();else o.remove();return true}
+  if(!$('vHome').classList.contains('hide'))return false;$('btnHome').click();return true};
+if(APP){$('btnPerm').classList.remove('hide');$('btnPerm').onclick=()=>APP.openSettings()}
+$('btnCam').onclick=()=>{
+  if(APP){scanLoop=true;$('camMsg').textContent='Scanner opens full-screen. After each scan enter the quantity, then it reopens. Press Back to stop.';APP.scanQR();return}
+  $('camMsg').textContent='Live camera scan works inside the Android app. Here use Photo scan or the scanner box.'};
+$('btnPhoto').onclick=()=>{
+  if(APP){scanLoop=false;$('camMsg').textContent='Take a clear photo of the tag (QR / barcode), or choose one from the gallery.';APP.scanPhoto();return}
+  $('fPhoto').click()};
+$('fPhoto').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;
+  try{if(!('BarcodeDetector' in window))throw new Error('no detector');
+    const bmp=await createImageBitmap(file),r=await new BarcodeDetector({formats:['qr_code','code_128','code_39','data_matrix']}).detect(bmp);
+    if(r.length)handle(r[0].rawValue);else toast('No QR found in photo')}catch(err){toast('Photo scan needs the Android app')}};
+
+/* ---------- plan loading */
+const numv=v=>{const n=parseFloat(String(v==null?'':v).replace(/,/g,''));return isNaN(n)?0:n};
+function parsePlan(rows){
+  let h=-1;for(let i=0;i<Math.min(rows.length,20);i++){const hd=(rows[i]||[]).map(c=>String(c).trim().toLowerCase());if(hd.some(s=>s.indexOf('material')===0)&&hd.some(s=>s.indexOf('batch')===0)){h=i;break}}
+  if(h<0)throw new Error('Header row with Material and Batch columns not found');
+  const hd=rows[h].map(c=>String(c).trim().toLowerCase());
+  const find=(...tests)=>{for(const t of tests){const i=hd.findIndex(t);if(i>=0)return i}return -1};
+  const im=find(s=>/^material( code| no\.?| number)?$/.test(s),s=>s.indexOf('material')===0&&s.indexOf('desc')<0),
+    id=find(s=>s.indexOf('desc')>=0),ib=find(s=>s.indexOf('batch')===0),
+    il=find(s=>s.indexOf('storage')===0||s.indexOf('sloc')===0||s==='loc'||s.indexOf('location')===0),
+    ik=find(s=>s.indexOf('qty')===0||s.indexOf('quantity')===0||s.indexOf('plan')===0||s.indexOf('required')===0),
+    is=find(s=>s.indexOf('std')===0),ip=find(s=>s.indexOf('packs')===0||s.indexOf('bags')===0);
+  if(im<0||ib<0||ik<0)throw new Error('Need columns: Material, Batch, Qty (kg). Optional: Material Description, Storage Loc, Std Pkg, Packs');
+  const g=(c,i)=>i<0||c[i]==null?'':String(c[i]).trim();
+  const out=rows.slice(h+1).filter(c=>c&&g(c,im)&&g(c,ib)&&numv(c[ik])>0).map(c=>{const k=numv(c[ik]),sd=is>=0?numv(c[is]):0,pk=ip>=0?numv(c[ip]):0;
+    return{m:g(c,im),d:g(c,id),b:g(c,ib),l:g(c,il),k:k,s:sd>0?sd:(pk>0?k/pk:1)}});
+  if(!out.length)throw new Error('No data rows found');
+  return out}
+$('btnUpPlan').onclick=()=>$('fPlan').click();
+$('fPlan').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;
+  try{let sheets;
+    if(/\.(xlsx|xlsm)$/i.test(file.name))sheets=await XL.readXlsx(await file.arrayBuffer());
+    else{const t=await file.text(),first=t.split(/\r?\n/)[0]||'';sheets=[{name:'file',rows:first.indexOf('\t')>=0?t.split(/\r?\n/).filter(Boolean).map(l=>l.split('\t')):XL.parseCsv(t)}]}
+    let rows=null,err='';for(const sh of sheets){try{rows=parsePlan(sh.rows);break}catch(x){err=x.message}}
+    if(!rows)throw new Error(err||'No data');
+    if(!confirm('Load plan "'+file.name+'" with '+rows.length+' lines?'+(S.log.length?'\nExisting scans ('+S.log.length+') are kept and re-matched by Material + Batch.':'')))return;
+    S.plan=rows;S.planName=file.name;prep();save();renderHome();toast('Plan loaded: '+rows.length+' lines')
+  }catch(err){alert('Could not load plan: '+err.message)}};
+$('btnDefPlan').onclick=()=>{if(confirm('Go back to the built-in plan?')){S.plan=DEF_PLAN.map(x=>Object.assign({},x));S.planName=DEF_NAME;prep();save();renderHome()}};
+
+/* ---------- report */
+function planRows(){
+  const A=agg(),out=[],lastIdx={};S.plan.forEach((x,i)=>{lastIdx[x.key]=i});
+  S.plan.forEach((x,i)=>{const got=r3(A.al[i]),extra=lastIdx[x.key]===i?r3(Math.max(0,(A.pick[x.key]||0)-(A.plKey[x.key]||0))):0;
+    out.push({kind:'plan',m:x.m,d:x.d,b:x.b,l:x.l,k:x.k,s:x.s,got:got,extra:extra,bal:r3(x.k-got),st:lineStatus(got,x.k),q:x.key,um:'KG'})});
+  const g={};
+  S.log.forEach(l=>{const k=nk(l.q);if(A.plKey[k]!==undefined)return;const inf=entInfo(l);
+    const e=g[k]=g[k]||{kind:isNewS(l.s)?'new':'wrong',q:k,m:'',d:'',b:'',l:'',um:'KG',got:0,bags:0,k:0,bal:0,extra:0};
+    e.m=inf.m;e.d=inf.d;e.b=inf.bt;e.l=inf.sl;e.um=inf.um||'KG';e.got+=Number(l.tot)||0;e.bags+=Number(l.b)||0;e.st=isNewS(l.s)?'NEW ITEM':'WRONG BATCH'});
+  Object.keys(g).forEach(k=>{g[k].got=r3(g[k].got);out.push(g[k])});
+  return out}
+function dashData(){
+  const A=agg(),R=planRows(),pr=R.filter(r=>r.kind==='plan');
+  const sum=(a,k)=>a.reduce((x,r)=>x+(Number(r[k])||0),0),cnt=s=>pr.filter(r=>r.st===s).length;
+  const ent=S.log,c=fn=>ent.filter(fn).length;
+  return{R,pr,planKg:sum(pr,'k'),gotKg:sum(pr,'got'),complete:cnt('COMPLETE'),partial:cnt('PARTIAL'),pend:cnt('PENDING'),
+    wrong:c(l=>l.s==='WRONG'||l.s==='WRONG BATCH'),warn:c(l=>String(l.s).indexOf('WARN')===0),extraN:c(l=>l.s==='EXTRA'),newN:R.filter(r=>r.kind==='new').length,
+    entries:ent.length,ok:c(l=>l.s==='OK'),bags:sum(ent,'b'),extraKg:sum(pr,'extra'),outKg:sum(R.filter(r=>r.kind!=='plan'),'got')}}
+function renderReport(){hdr();const d=dashData(),prog=d.planKg?Math.min(1,d.gotKg/d.planKg):0,fifo=d.entries?d.ok/d.entries:1;
+  const kp=[['Complete',d.complete,'var(--ok)'],['Partial',d.partial,'var(--warn)'],['Pending',d.pend,'var(--mut)'],['Wrong batch',d.wrong,'var(--bad)'],['Earlier batch pending',d.warn,'var(--warn)'],['Extra qty',d.extraN,'var(--warn)'],['New items',d.newN,'#7a3db8'],['Entries',d.entries,'var(--tx)']];
+  $('dash').innerHTML=`<div class="dg"><div class="dbig"><b>${Math.round(prog*100)}%</b><span>Picked · ${f(d.gotKg)} of ${f(d.planKg)} kg</span><div class="bar"><i style="width:${prog*100}%"></i></div></div>
+   <div class="dbig"><b>${Math.round(fifo*100)}%</b><span>FIFO clean · ${d.ok} of ${d.entries} scans OK</span><div class="bar"><i style="width:${fifo*100}%"></i></div></div></div>
+   <div class="kpis" style="margin-top:8px">${kp.map(k=>`<div class="kpi"><b style="color:${k[2]}">${k[1]}</b><span>${k[0]}</span></div>`).join('')}</div>
+   <div class="dh">Quantity (kg)</div><div class="kpis"><div class="kpi"><b>${f(d.planKg)}</b><span>Planned</span></div><div class="kpi"><b>${f(d.gotKg)}</b><span>Picked (in plan)</span></div><div class="kpi"><b>${f(d.planKg-d.gotKg)}</b><span>Balance</span></div><div class="kpi"><b style="color:${d.outKg+d.extraKg>TOL?'var(--bad)':'var(--ok)'}">${f(d.outKg+d.extraKg)}</b><span>Outside plan / extra</span></div></div>`;
+  drawDetail()}
+function drawDetail(){const m=$('repMode').value;let rows=dashData().R.filter(r=>m==='all'?true:m==='extra'?(r.kind!=='plan'||r.extra>0):(r.kind==='plan'&&r.st===m));
+  $('repTbl').innerHTML='<tr><th>Material / Batch</th><th class="n">Plan</th><th class="n">Picked</th><th class="n">Balance</th><th>Status</th></tr>'+
+   (rows.slice(0,300).map(r=>`<tr><td>${esc(r.m||'—')}<br><b>${esc(r.d||r.q)}</b><br><span class="mut">${esc(r.b||'—')}${r.l?' · SLoc '+esc(r.l):''}</span></td><td class="n">${r.kind==='plan'?f(r.k):'—'}</td><td class="n">${f(r.got)}${r.extra>0?'<br><span style="color:var(--warn)">+'+f(r.extra)+' extra</span>':''}</td><td class="n" style="color:${r.kind==='plan'&&r.bal>TOL?'var(--bad)':'var(--ok)'}">${r.kind==='plan'?f(r.bal):'—'}</td><td>${sTag(r.st)}</td></tr>`).join('')||'<tr><td colspan=5 class="mut">Nothing to show</td></tr>')+(rows.length>300?`<tr><td colspan=5 class="mut">Showing 300 of ${rows.length} – download Excel for all</td></tr>`:'')}
+$('repMode').onchange=drawDetail;
+
+/* ---------- export: Excel / CSV / copy / backup */
+function b64of(blob,cb){const fr=new FileReader();fr.onload=()=>cb(String(fr.result).split(',')[1]||'');fr.readAsDataURL(blob)}
+function dl(name,blob){
+  if(APP){b64of(blob,b=>{let m;try{m=String(APP.saveFile(name,blob.type||'application/octet-stream',b))}catch(e){m='ERR: '+e}toast(m.replace(/^OK:\s*/,''))});return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href)},4000)}
+function buildWorkbook(){
+  const rc=s=>s==='OK'?3:(s==='WRONG'||s==='WRONG BATCH')?2:isNewS(s)?5:4;
+  const log=[['Time','Picker','QR (Material+Batch)','Material','Description','Batch','Storage Loc','Bags','Qty per bag (kg)','Total (kg)','Result']];
+  S.log.forEach(l=>{const i=entInfo(l);log.push([l.t,l.p||'',l.q,i.m,i.d,i.bt,i.sl,Number(l.b)||0,Number(l.w)||0,Number(l.tot)||0,{v:sText(l.s),s:rc(l.s)}])});
+  const R=planRows(),pv=[['Material','Description','Batch','Storage Loc','Planned (kg)','Picked (kg)','Balance (kg)','Extra over plan (kg)','Std pack (kg)','Bags planned','Bags picked','Status']];
+  R.filter(r=>r.kind==='plan').forEach(r=>pv.push([r.m,r.d,r.b,r.l,r.k,r.got,r.bal,r.extra,r.s,r3(r.k/r.s),r3(r.got/r.s),{v:r.st,s:r.st==='COMPLETE'?3:r.st==='PARTIAL'?4:0}]));
+  const np=[['Status','Tag (QR)','Material','Description','Batch','Storage Loc','UM','Bags','Picked qty']];
+  R.filter(r=>r.kind!=='plan').forEach(r=>np.push([{v:r.st,s:r.kind==='new'?5:2},r.q,r.m,r.d,r.b,r.l,r.um,r.bags,r.got]));
+  if(np.length===1)np.push(['(none)','','','','','','','','']);
+  return XL.writeXlsx([{name:'Scan Log',rows:log,widths:[19,14,26,14,30,14,12,8,14,12,28]},{name:'Plan vs Picked',rows:pv,widths:[14,32,14,12,13,13,13,14,12,12,12,12]},{name:'Not in plan',rows:np,widths:[16,26,14,30,14,12,6,8,12]}])}
+function exportExcel(){if(!S.log.length&&!confirm('No scans yet. Export the plan with everything PENDING?'))return;const b=buildWorkbook();dl('FIFO_Pick_'+stamp()+'.xlsx',b);if(!APP)toast('Excel downloaded – check your Downloads folder')}
+async function shareExcel(){const b=buildWorkbook(),name='FIFO_Pick_'+stamp()+'.xlsx';
+  if(APP){b64of(b,x=>{try{APP.shareFile(name,b.type,x)}catch(e){toast('Share failed: '+e)}});return}
+  try{const file=new File([b],name,{type:b.type});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'FIFO Pick'});return}}catch(e){}
+  dl(name,b);toast('Sharing not supported here – file downloaded')}
+$('btnExport').onclick=exportExcel;$('btnExport2').onclick=exportExcel;$('btnShare').onclick=shareExcel;$('btnShare2').onclick=shareExcel;
+const csvc=v=>{v=String(v==null?'':v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+$('btnCsv').onclick=()=>{if(!S.log.length){toast('No scans yet');return}
+  const t='Time,Picker,QR,Bags,QtyPerBag,TotalQty,Result,Material,Description,Batch,StorageLoc\n'+S.log.map(l=>{const i=entInfo(l);return[l.t,l.p,l.q,l.b,l.w,l.tot,sText(l.s),i.m,i.d,i.bt,i.sl].map(csvc).join(',')}).join('\n');
+  dl('scan_log_'+stamp()+'.csv',new Blob(['\ufeff'+t],{type:'text/csv'}));if(!APP)toast('CSV downloaded')};
+$('btnCopy').onclick=()=>{if(!S.log.length){toast('No scans yet');return}
+  const t=S.log.map(l=>[l.t,l.p,l.q,l.b,l.w].join('\t')).join('\n');let ok=false;
+  try{if(APP&&APP.copyText)ok=!!APP.copyText(t)}catch(e){}
+  if(!ok){try{const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');ta.remove()}catch(e){}}
+  toast(ok?'Copied '+S.log.length+' rows. Paste in Excel Scan Log cell A6':'Copy failed – use Download CSV instead')};
+$('btnBackup').onclick=()=>dl('FIFO_Pick_Backup_'+stamp()+'.json',new Blob([JSON.stringify(S)],{type:'application/json'}));
+$('btnRestore').onclick=()=>$('fRestore').click();
+$('fRestore').onchange=e=>{const fl=e.target.files[0];if(!fl)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!Array.isArray(x.log))throw 0;
+  if(confirm('Replace current data with backup ('+x.log.length+' scans)?')){S=Object.assign({plan:[],log:[],pk:'',newItems:{},planName:''},x);prep();save();renderHome();toast('Backup restored')}}catch(_){toast('Invalid backup file')}};r.readAsText(fl);e.target.value=''};
+$('btnClear').onclick=()=>{if(confirm('Delete ALL scans on this device? Export first!')&&confirm('Really delete everything?')){S.log=[];S.newItems={};save();renderHome();toast('Log cleared')}};
+
+/* ---------- start */
+save();renderHome();show('vHome');
+</script></body></html>
